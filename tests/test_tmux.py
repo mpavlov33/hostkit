@@ -239,3 +239,13 @@ def test_nowait_returns_at_once_and_the_result_arrives_later(sshd, clock, host):
     assert runner.result is None, "still running"
     clock.now += 301
     assert runner.result.rc == 0 and runner.result.stdout == "done\n"
+
+
+def test_the_runner_logs_under_the_hostkit_logger(sshd, clock, host, caplog):
+    vm(sshd, clock)
+
+    with caplog.at_level("INFO", logger="hostkit"):
+        runner = host.run_wait("make src", timeout=600, nowait=True)
+
+    assert any(r.name.startswith("hostkit.") and runner.unique_name in r.getMessage()
+               for r in caplog.records)

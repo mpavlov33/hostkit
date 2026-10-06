@@ -1,9 +1,9 @@
 import logging
 
-from . import backends, utils, modules, tmux
+from . import backends, modules, tmux, utils
 from .backends import Connection
-from .logging_wrap import set_colored_handler
 
-logger_name = "hostkit"
-logger = logging.getLogger(logger_name)
-set_colored_handler(logger_name, stream="stdout")
+__all__ = ["Connection", "backends", "modules", "tmux", "utils"]
+
+# Output is the application's to configure: logging_wrap.set_colored_handler("hostkit") turns it on.
+logging.getLogger(__name__).addHandler(logging.NullHandler())

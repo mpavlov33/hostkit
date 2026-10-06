@@ -22,6 +22,7 @@ runner.result.rc, runner.result.stdout
 
 - Paths go to the shell unquoted (globs work); data is shell-quoted.
 - `hostkit.utils.strip_exports` cuts `export K='v';` prefixes, where credentials go, out of a command before it is logged.
+- hostkit logs under the `hostkit` logger and prints nothing by itself; `hostkit.logging_wrap.set_colored_handler("hostkit")` turns colored output on.
 - `hostkit.testing` has the doubles: `Sshd` (paramiko's side of a host), `Clock`, `Box` (a host on this machine's `sh`).
 
 ## Development

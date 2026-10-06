@@ -24,7 +24,7 @@ from tenacity import (
     wait_fixed,
 )
 
-logger = logging.getLogger("hostkit")
+logger = logging.getLogger(__name__)
 
 # A hung channel would block a command forever, so it is aborted after this many seconds (0: never).
 SSH_COMMAND_TIMEOUT = int(os.getenv("SSH_COMMAND_TIMEOUT", "3600"))

@@ -11,7 +11,7 @@ from datetime import datetime
 import logging
 from typing import Union
 
-logger = logging.getLogger("autotest")
+logger = logging.getLogger(__name__)
 
 
 @dataclass

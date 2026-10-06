@@ -4,6 +4,8 @@ The double is ``hostkit.testing.Sshd``, answering with the output the real tools
 import io
 import logging
 import re
+import subprocess
+import sys
 
 import pytest
 
@@ -1056,3 +1058,14 @@ def test_the_colored_handler_writes_formatted_lines_to_the_chosen_stream(
 
     assert CustomFormatter.red in sink.getvalue()
     assert "SSH session is lost" in sink.getvalue()
+
+
+def test_importing_hostkit_writes_nothing_until_the_application_asks():
+    probe = ("import logging, hostkit; "
+             "logging.getLogger('hostkit.backends').warning('should stay silent'); "
+             "print([type(h).__name__ for h in logging.getLogger('hostkit').handlers])")
+    done = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
+
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == "['NullHandler']"
+    assert "should stay silent" not in done.stderr
