@@ -4,6 +4,7 @@ The double is the container: ShellContainer runs exec_run's argv on this machine
 """
 import os
 import subprocess
+import time
 
 import docker
 import pytest
@@ -50,7 +51,15 @@ class Client:
 @pytest.fixture(autouse=True)
 def no_waiting(mocker):
     """A retry would sleep a minute: a backend error must fail the test at once."""
-    mocker.patch("time.sleep", side_effect=AssertionError("hostkit retried a command the backend failed"))
+    real_sleep = time.sleep
+
+    def sleep(seconds):
+        # subprocess polls its child in milliseconds on POSIX; a retry waits whole seconds.
+        if seconds >= 1:
+            raise AssertionError("hostkit retried a command the backend failed")
+        real_sleep(seconds)
+
+    mocker.patch("time.sleep", side_effect=sleep)
 
 
 @pytest.fixture

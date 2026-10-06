@@ -110,7 +110,8 @@ def test_an_appended_write_goes_on_after_the_last_byte(box):
 
 
 def test_a_checked_write_into_a_missing_directory_raises(box):
-    with pytest.raises(Exception, match="non-zero exit code: .*No such file or directory"):
+    # bash and dash word the error differently; both name the path.
+    with pytest.raises(Exception, match="non-zero exit code: .*no-dir/myapp.conf"):
         box.file((box.home / "no-dir" / "myapp.conf").as_posix()).write("x\n", check=True)
 
 
