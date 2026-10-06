@@ -1,0 +1,13 @@
+hostkit
+Copyright 2026 Mihail Pavlov
+
+This product includes software derived from pytest-testinfra
+(https://github.com/pytest-dev/pytest-testinfra), Copyright Philippe Pepiot
+and the pytest-testinfra contributors, licensed under the Apache License,
+Version 2.0.
+
+The derived files are hostkit/modules/file.py, process.py, package.py,
+systeminfo.py and service.py. They were modified: actions (remove, write,
+copy, pkill, kill, install, start/stop, ...) with a check flag, shell
+quoting of data, Process.in_state, a SystemInfo probe without lsb_release,
+and removal of unused parts. Each carries a notice at its top.
