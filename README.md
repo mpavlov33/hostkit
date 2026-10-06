@@ -1,5 +1,7 @@
 # hostkit
 
+[![tests](https://github.com/mpavlov33/hostkit/actions/workflows/tests.yml/badge.svg)](https://github.com/mpavlov33/hostkit/actions/workflows/tests.yml)
+
 A host over SSH (paramiko) or Docker, testinfra-style: query and change its files, processes, packages, services, docker, SELinux and sysctl, and run long commands detached in tmux or nohup.
 
 Derived from [pytest-testinfra](https://github.com/pytest-dev/pytest-testinfra) (Apache-2.0); see `NOTICE`.
