@@ -1,7 +1,6 @@
 import contextlib
 import logging
 import os
-import pathlib
 import traceback
 import re
 import socket
@@ -191,7 +190,7 @@ class Connection:
         nowait: bool = False,
         endless_cmd: bool = False,
         creds: dict = None,
-    ) -> "CommandRunnerNoSession":
+    ) -> "hostkit.tmux.CommandRunnerNoSession":
         bg_cmd = hostkit.tmux.CommandRunnerNoSession(
             host=self,
             command=cmd,
