@@ -51,6 +51,25 @@ class Flood(Reply):
         super().__init__(rc=rc, out=b"x" * (self.WINDOW + 1024) + b"\n")
 
 
+class Running(Reply):
+    """A command that runs, holding its session slot, until `finish()` (within 5 s): it ends then with `rc`."""
+
+    def __init__(self, rc=0, out=b""):
+        super().__init__(rc=rc, out=out)
+        self.channels = []
+
+    def finish(self):
+        for channel in self.channels:
+            channel.status_event.set()
+
+
+class CutOff(Reply):
+    """A command still running when its session is closed (within 5 s): it ends then, with exit status -1 and no output."""
+
+    def __init__(self):
+        super().__init__(rc=-1)
+
+
 # The remote never sends an exit status: a wedged VM, a dead network path.
 HANG = object()
 
@@ -58,11 +77,12 @@ HANG = object()
 class _StatusEvent:
     """channel.status_event that records each wait's timeout in `waits` and never holds a test long."""
 
-    def __init__(self, arrived, never=False):
+    def __init__(self, arrived, never=False, longest=0.25):
         self._event = threading.Event()
         if arrived:
             self._event.set()
         self._never = never
+        self._longest = longest
         self.waits = []
 
     def set(self):
@@ -77,21 +97,29 @@ class _StatusEvent:
             return True
         if self._never:
             return False
-        return self._event.wait(0.25 if timeout is None else min(timeout, 0.25))
+        return self._event.wait(self._longest if timeout is None else min(timeout, self._longest))
 
 
 class _Channel:
     """The paramiko.Channel of one command, hand-written since a spec'd mock per command is slow."""
 
-    def __init__(self, reply):
+    def __init__(self, reply, client=None):
         self.reply = reply
+        self.client = client
         self.closed = False
         self.pending = bytearray(reply.out if isinstance(reply, Flood) else b"")
         self.status_event = _StatusEvent(
-            arrived=reply is not HANG and not isinstance(reply, Flood),
-            never=reply is HANG)
+            arrived=reply is not HANG and not isinstance(reply, (Flood, CutOff, Running)),
+            never=reply is HANG,
+            # Held until another thread closes the session or finishes the command.
+            longest=5 if isinstance(reply, (CutOff, Running)) else 0.25)
+        if isinstance(reply, Running):
+            reply.channels.append(self)
 
     def recv_exit_status(self):
+        if isinstance(self.reply, (CutOff, Running)):
+            # As a real channel does, without a timeout too: until another thread closes the session.
+            self.status_event.wait()
         if not self.status_event.is_set():
             raise AssertionError(
                 "recv_exit_status() blocks forever here: the exit status never "
@@ -182,7 +210,12 @@ class Sshd:
     def drop(self):
         """Every session open now is gone for good, as after an outage."""
         for client in self.clients:
-            self._alive[id(client)] = False
+            self._set_alive(client, False)
+
+    def _set_alive(self, client, alive):
+        self._alive[id(client)] = alive
+        # A return value, not a side effect: a test may still set it itself.
+        client.get_transport.return_value.is_active.return_value = alive
 
     # -- paramiko ------------------------------------------------------------
 
@@ -193,7 +226,6 @@ class Sshd:
 
     def _new_client(self):
         client = self.mocker.create_autospec(SSHClient, instance=True)
-        self._alive[id(client)] = False
         client.connect.side_effect = (
             lambda hostname, **kwargs: self._connect(client, hostname, kwargs))
         client.exec_command.side_effect = (
@@ -203,6 +235,7 @@ class Sshd:
             lambda *args, **kwargs: self._like(paramiko.Channel))
         client.get_transport.return_value = self._like(paramiko.Transport)
         client.open_sftp.side_effect = lambda: self._sftp()
+        self._set_alive(client, False)
         self.clients.append(client)
         return client
 
@@ -215,10 +248,17 @@ class Sshd:
             raise paramiko.SSHException("Error reading SSH protocol banner")
         if not self.accepts(kwargs):
             raise paramiko.AuthenticationException("Authentication failed.")
-        self._alive[id(client)] = True
+        self._set_alive(client, True)
 
     def _close(self, client):
-        self._alive[id(client)] = False
+        self._set_alive(client, False)
+        cut = [c for c in self.channels
+               if c.client is client and isinstance(c.reply, CutOff) and not c.status_event.is_set()]
+        for channel in cut:
+            channel.status_event.set()
+        if cut:
+            # paramiko's close() returns only after its transport thread ends: the cut-off commands wake meanwhile.
+            threading.Event().wait(0.2)
 
     def _exec(self, client, command, kwargs):
         if not self._alive[id(client)]:
@@ -233,13 +273,13 @@ class Sshd:
             answer = answer(command)
         if isinstance(answer, BaseException):
             raise answer
-        return self._streams(answer)
+        return self._streams(answer, client)
 
     def _like(self, cls):
         return self.mocker.NonCallableMagicMock(spec=cls)
 
-    def _streams(self, reply):
-        channel = _Channel(reply)
+    def _streams(self, reply, client=None):
+        channel = _Channel(reply, client)
         self.channels.append(channel)
         if reply is HANG or isinstance(reply, Flood):
             stdout_data, stderr_data = None, b""
